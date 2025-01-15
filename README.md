@@ -649,3 +649,89 @@ Since we are in the production mode, we can safely replace `style-loader` with t
 We also have to include a new instance of `MiniCssExtractPlugin` in the `plugins` array. It comes with options configuration object, but for our purpose we will instantiate it without one.
 
 The compilation/bundling will spit out additional file in our `dist` directory - namely, `main.css`.
+
+# DefinePlugin
+
+The `DefinePlugin` is a Webpack plugin used to define global constants at compile time, allowing you to inject static values into your code during the build process.
+
+Example:
+
+Add the following line to `src/App.js`
+
+```js
+import React from 'react';
+import './App.css';
+import dogImage from '../../public/dog-img.jpg';
+
+export default function AppComponent() {
+    console.log('API_URL', API_URL);
+    ...
+}
+```
+
+Declare new instance of DefinePlugin in the `webpack.prod.config.js` configuration file:
+
+```js
+const path = require('path');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
+const TerserPlugin = require('terser-webpack-plugin');
+const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+const webpack = require('webpack');
+
+module.exports = {
+    mode: 'production',
+    ...
+    plugins: [
+        ...
+        new webpack.DefinePlugin({
+            PRODUCTION: JSON.stringify(true),
+            API_URL: JSON.stringify('https://api/v2/graphql'),
+        }),
+    ],
+    ...
+};
+```
+
+We have defined a constant `API_URL` that holds the string `https://api/v2/graphql`.
+Webpack replaces every occurrence of API_URL in our source code with the string value `https://api/v2/graphql` at build time.
+
+So, DefinePlugin is useful for injecting environment-specific variables like API URLs, feature flags, or build metadata.
+We avoid hardcoding these values in our source code or relying on runtime configuration, making our builds predictable.
+
+Note that because the plugin does a direct text replacement, the value given to it must include actual quotes inside of the string itself. Typically, this is done either with alternate quotes, such as '"production"', or by using JSON.stringify('production').
+
+# About source-map and devtool
+
+The configuration entry `devtool: 'source-map'` tells Webpack to generate source maps for our code, which map the minified/compiled output to our original source code.
+The source map allows us to debug minified or bundled code effectively.
+
+Why?
+
+1. Easier debugging:
+
+-   In production mode, your code is minified and bundled (thanks to TerserPlugin).
+-   Without source maps, debugging such code is nearly impossible because variable names are shortened, and the structure of the code is altered.
+
+2. Improved Error Reporting:
+
+-   Modern browsers like Chrome use source maps to display the original source file and line number in the developer tools when an error occurs, rather than showing the compiled output.
+
+3. Selective Visibility:
+
+-   The source-map option generates separate .map files alongside your bundles, making them available for debugging but not embedded in the code itself (unlike inline-source-map).
+
+When?
+
+-   Production Mode:
+    -   Use it when you need debuggable production builds while keeping the source maps external for faster load times.
+-   Development Mode:
+    -   Use faster but less production-suited options, like `eval-source-map`, which generates maps quickly.
+    -   example: `devtool: 'eval-source-map'`
+
+Best Practices:
+
+Use environment variables (e.g., `process.env.API_URL`) with `DefinePlugin` to manage values for multiple environments dynamically.
+
+Be cautious about using source-map in production as it can expose sensitive information (e.g., comments or unintentional code leaks).
+For stricter control, you might prefer `hidden-source-map`, which doesn't expose the source map URL in the minified file.
+

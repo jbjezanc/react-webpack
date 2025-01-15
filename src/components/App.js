@@ -3,6 +3,11 @@ import './App.css';
 import dogImage from '../../public/dog-img.jpg';
 
 export default function AppComponent() {
+    if (PRODUCTION) {
+        console.log('API_URL', API_URL);
+    } else {
+        console.log('API_URL', 'https://api/v1/graphql');
+    }
     const logMessage = () => {
         console.log('hello, I am not referenced anywhere!');
     };
