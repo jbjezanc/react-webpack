@@ -58,7 +58,7 @@ module.exports = {
         minimizer: [new TerserPlugin()],
         splitChunks: {
             chunks: 'async',
-            minSize: 200,
+            minSize: 20000,
             minRemainingSize: 0,
             minChunks: 1,
             maxAsyncRequests: 30,

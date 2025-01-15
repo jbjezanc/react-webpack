@@ -939,7 +939,8 @@ module.exports = {
 Explanation:
 
 1. `chunkIds: 'named`
-    - Purpose: 
+
+    - Purpose:
         - Assign readable names to chunks rather than using default numeric or hashed IDs.
     - Benefits:
         - Improved debugging experience and chunks are more identifiable during development.
@@ -947,14 +948,16 @@ Explanation:
         - In production: we might prefer `'deterministic'` or `'size'` for smaller output or consistent hashing.
 
 2. `minimize: true`
-    - Purpose: 
+
+    - Purpose:
         - Enable code minification to reduce the size of our JavaScript bundles.
-    - How: 
+    - How:
         - Webpack uses the `TerserPlugin` by default to minimize the output.
     - Benefit:
         - Reduces bundle size, leading to faster downloads and better performance in production.
 
 3. `minimizer: [new TerserPlugin()]`
+
     - Purpose:
         - Specifies a custom minimizer for JavaScript files.
     - Details:
@@ -964,10 +967,11 @@ Explanation:
         - Enables us to optimize minification further, such as removing comments, adjusting compression, or handling specific ES versions.
 
 4. `splitChunks`
+
     - Purpose:
         - Splits our bundles into smaller chunks to improve performance and allow for better caching.
     - Key Configurations:
-        - `chunks: 'async'` 
+        - `chunks: 'async'`
             - Splits only asynchronous (dynamically imported) chunks.
             - Benefit:
                 - Reduces initial load times by loading only what's needed on-demand.
@@ -975,7 +979,7 @@ Explanation:
             - The minimum size (in bytes) of a chunk before Webpack considers splitting it.
             - Why 200?
                 - Small chunks (less than 200 bytes) are inefficient to load due to network overhead,
-                so this avoids unnecessary splitting.
+                  so this avoids unnecessary splitting.
         - `minRemainingSize: 0`
             - Ensures that the size of the remaining chunk after splitting doesn't fall below the specified value.
             - Default Behavior:
@@ -988,7 +992,7 @@ Explanation:
             - Limits the number of simultaneous chunk requests for asynchronous (`maxAsyncRequests`) or initial (`maxInitialRequests`) chunks.
             - Why 30?
                 - High limits ensure you’re not unnecessarily restricted while avoiding too many
-                simultaneous requests.
+                  simultaneous requests.
         - `enforceSizeThreshold: 50000`
             - Enforces a chunk size threshold, ensuring chunks larger than this value (in bytes) are split even if other conditions aren’t met.
             - Benefit:
@@ -1026,8 +1030,65 @@ Why is this optimization useful?
 4. Better Scalability:
     - This setup is robust enough to handle both small projects and large-scale applications with multiple entry points.
 
-Example Output:
-    - `vendor.bundle.js` contains third-party libraries like React.
-    - `common.bundle.js` contains code shared across multiple parts of your app.
-    - Dynamic Chunks: Asynchronous modules will be loaded on demand.
+Example Output: - `vendor.bundle.js` contains third-party libraries like React. - `common.bundle.js` contains code shared across multiple parts of your app. - Dynamic Chunks: Asynchronous modules will be loaded on demand.
 
+# Dynamic Imports
+
+Two similar techniques are supported by webpack when it comes to dynamic code splitting.
+The first and recommended approach is to use the [import()](https://webpack.js.org/api/module-methods/#import-1) syntax that conforms to the [ECMAScript proposal](https://github.com/tc39/proposal-dynamic-import) for dynamic imports.
+The legacy, webpack-specific approach is to use [require.ensure](https://webpack.js.org/api/module-methods/#requireensure).
+
+`import()` calls use promises internally. If you use `import()` with older browsers (e.g., IE 11), remember to shim `Promise` using a polyfill such as [es6-promise](https://github.com/stefanpenner/es6-promise) or [promise-polyfill](https://github.com/taylorhakes/promise-polyfill).
+
+Create another component in the `src/components` - `DynamicComponent.jsx`.
+
+First try to import it statically in the `App.jsx`.
+You can see that it will be bundled into `common.bundle.js`.
+
+Then, comment the regular import and import it dynamically like this:
+
+```js
+import React from 'react';
+import './App.css';
+// import DynamicComponent from './Dynamic';
+const DynamicComponent = lazy(() => import('./Dynamic'));
+
+export default function AppComponent() {
+    return (
+        <div className="container">
+            <div>App Component</div>
+            <div>
+                ...
+                <DynamicComponent />
+            </div>
+        </div>
+    );
+}
+```
+
+## Lazy Loading
+
+Lazy, or "on demand" loading is a great way to optimize our application. This practice essentially involves splitting your code at logical breakpoints, and then loading it once the user has done something that requires, or will require, a new block of code. This speeds up the initial load of the application and lightens its overall weight as some blocks may never even be loaded.
+
+Go to the `webpack.prod.config.js` and increase `optimization.splitChunks.minSize` to `20000` (20kB).
+
+Run the build:
+
+```
+$ npm run build:prod
+```
+
+Since we injected the `Dynamic.jsx` into `App.jsx` as a lazy component this resulted in a new bundle being created `src_components_Dynamic_jsx.bundle.js`.
+
+Furthermore, there is a special syntax we can use to give the dynamically loaded component a name to be used in the resulting chunk:
+
+```js
+...
+// import DynamicComponent from './Dynamic';
+const DynamicComponent = lazy(() =>
+    import(/* webpackChunkName: 'dynamic-component' */ './Dynamic')
+);
+...
+```
+
+If we now run the production build, to our surprise we can see the generated chunk named `dynamic-component.bundle.js`.
