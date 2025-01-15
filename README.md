@@ -333,7 +333,7 @@ Create a script in the `package.json` to run that server:
 Now, any change to any file in the `src` folder will trigger a page update (without an actual reload). This is possible due to the important concept made available in the webpack - HMR, or hot module replacement - any affected module will be replaced/updated in the runtime without the need to reload the whole page or to touch unaffected modules. This is possible because there is a WebSocket connection which listens for changes in our source code during development.
 If we edit our app, Webpack sends updated modules to the modules, and React efficiently updated the UI without refreshing the page.
 
-The command to start Webpack Dev Server: 
+The command to start Webpack Dev Server:
 
 ```
 $ npm run serve
@@ -341,9 +341,9 @@ $ npm run serve
 
 Gains:
 
-- Efficiency: HMR speeds up development by applying the changes we make instead of reloading the entire page
-- Isolation: Webpack Dev Server serves everything from memory, keeping our build output clean during development
-- Reactive Updates: The browser reflects code changes almost instantly, improving the development experience
+-   Efficiency: HMR speeds up development by applying the changes we make instead of reloading the entire page
+-   Isolation: Webpack Dev Server serves everything from memory, keeping our build output clean during development
+-   Reactive Updates: The browser reflects code changes almost instantly, improving the development experience
 
 On the other hand, we can build our bundle by running the following command:
 
@@ -355,11 +355,81 @@ This will result with `main.bundle.js` being created in the `dist` directory, al
 
 The bundle contains the following code parts:
 
-- React Components: our app's components compiled from JSX/TS into plain JS
-- Webpack Runtime: a set of utility functions that Webpack uses to load, execute, and manage modules
-- Module Code: all of our JS files (and imported assets) bundled together into one file
-- IIFE (Immediately Invoked Function Expression):
- - The bundle is wrapped in an IIFE, which is a self-executing function that isolates Webpack's internal logic from the global scope.
-- HMR Code (for Development): includes additional Webpack logic for handling HMR during development.
+-   React Components: our app's components compiled from JSX/TS into plain JS
+-   Webpack Runtime: a set of utility functions that Webpack uses to load, execute, and manage modules
+-   Module Code: all of our JS files (and imported assets) bundled together into one file
+-   IIFE (Immediately Invoked Function Expression):
+-   The bundle is wrapped in an IIFE, which is a self-executing function that isolates Webpack's internal logic from the global scope.
+-   HMR Code (for Development): includes additional Webpack logic for handling HMR during development.
 
 Webpack uses specific methods like `__webpack_require__` to load modules dynamically at runtime.
+
+## Loading images
+
+If we just insert a `<img>` tag in our template, it will not be available in our bundle because our current webpack setup does not know how to load and bundle images.
+
+Either this:
+
+```js
+import React from 'react';
+import './App.css';
+
+export default function AppComponent() {
+    return (
+        <div className="container">
+            <div>App Component</div>
+            <img src="../../public/dog-img.jpg" alt="a dog" />
+        </div>
+    );
+}
+```
+
+nor this:
+
+```js
+import React from 'react';
+import './App.css';
+import dogImage from '../../public/dog-img.jpg';
+
+export default function AppComponent() {
+    return (
+        <div className="container">
+            <div>App Component</div>
+            <img src={dogImage} alt="a dog" />
+        </div>
+    );
+}
+```
+
+will work.
+
+Webpack will make sure to inform us about that.
+
+```js
+ERROR in ./public/dog-img.jpg 1:0
+Module parse failed: Unexpected character '�' (1:0)
+You may need an appropriate loader to handle this file type, currently no loaders are configured to process this file. See https://webpack.js.org/concepts#loaders
+(Source code omitted for this binary file)
+ @ ./src/components/App.js 3:0-48 8:9-17
+ @ ./src/components/index.js 3:0-44 5:84-96
+
+webpack 5.97.1 compiled with 1 error in 16 ms
+```
+
+Guess, it says we need another loader.
+
+As of webpack v5, using the built-in [Asset Modules](https://webpack.js.org/guides/asset-modules/), we can easily incorporate those in our system as well.
+
+```js
+...
+module: {
+        rules: [
+            ...
+            {
+                test: /\.(png|svg|jpg|jpeg|gif)$/i,
+                type: 'asset/resource',
+            },
+        ],
+    },
+...
+```
