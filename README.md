@@ -433,3 +433,178 @@ module: {
     },
 ...
 ```
+
+# Creating a Production Build
+
+# Production Build
+
+webpack.prod.config.js
+
+```js
+const path = require('path');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
+
+module.exports = {
+    mode: 'production',
+    entry: './src/components/index.js',
+    output: {
+        path: path.resolve(__dirname, 'dist'),
+        filename: '[name].bundle.js',
+    },
+    resolve: {
+        extensions: ['.js', '.jsx'],
+        alias: {
+            '@': path.resolve(__dirname, 'src'),
+        },
+    },
+    module: {
+        rules: [
+            {
+                test: /\.(?:js|jsx)$/,
+                exclude: /node_modules/,
+                use: {
+                    loader: 'babel-loader',
+                    options: {
+                        targets: 'defaults',
+                        presets: ['@babel/preset-env', '@babel/preset-react'],
+                    },
+                },
+            },
+            {
+                test: /\.css$/i,
+                use: ['style-loader', 'css-loader'],
+            },
+            {
+                test: /\.(png|svg|jpg|jpeg|gif)$/i,
+                type: 'asset/resource',
+            },
+        ],
+    },
+    plugins: [
+        new HtmlWebpackPlugin({
+            template: './public/index.html',
+            filename: 'index.html',
+        }),
+    ],
+};
+```
+
+With just one simple change of the `mode` property and by running the following command:
+
+```
+$ npx webpack --config webpack.prod.config.js
+```
+
+we now have automatically minified main.bundle.js.
+This process also removed dead code (treeshaking) to reduce the bundle size.
+
+# Explicit Minification with TerserWebpackPlugin
+
+Webpack v5 comes with the latest terser-webpack-plugin out of the box.
+Since we wish to customize the plugin's options, we need to install the `terser-webpack-plugin`.
+
+```
+$ npm install terser-webpack-plugin --save-dev
+```
+
+TerserWebpackPlugin will do an optimized minification of the `main.bundle.js`.
+It will:
+
+-   shorten the function names
+-   remove whitespaces
+-   treeshake the resulting bundle
+
+To test dead code elimination, define additional code in the `src/components/App.js` that will not be referenced anywhere.
+
+```js
+import React from 'react';
+import './App.css';
+import dogImage from '../../public/dog-img.jpg';
+
+export default function AppComponent() {
+    const logMessage = () => {
+        console.log('hello, I am not referenced anywhere!');
+    };
+    return (
+        <div className="container">
+            <div>App Component</div>
+            <div>
+                <img className="dog" src={dogImage} alt="a dog" />
+            </div>
+        </div>
+    );
+}
+```
+
+Try TerserWebpackPlugin with options:
+
+webpack.prod.config.js
+
+```js
+const path = require('path');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
+const TerserPlugin = require('terser-webpack-plugin');
+
+module.exports = {
+    mode: 'production',
+    entry: './src/components/index.js',
+    output: {
+        path: path.resolve(__dirname, 'dist'),
+        filename: '[name].bundle.js',
+    },
+    resolve: {
+        extensions: ['.js', '.jsx'],
+        alias: {
+            '@': path.resolve(__dirname, 'src'),
+        },
+    },
+    module: {
+        rules: [
+            {
+                test: /\.(?:js|jsx)$/,
+                exclude: /node_modules/,
+                use: {
+                    loader: 'babel-loader',
+                    options: {
+                        targets: 'defaults',
+                        presets: ['@babel/preset-env', '@babel/preset-react'],
+                    },
+                },
+            },
+            {
+                test: /\.css$/i,
+                use: ['style-loader', 'css-loader'],
+            },
+            {
+                test: /\.(png|svg|jpg|jpeg|gif)$/i,
+                type: 'asset/resource',
+            },
+        ],
+    },
+    plugins: [
+        new HtmlWebpackPlugin({
+            template: './public/index.html',
+            filename: 'index.html',
+        }),
+    ],
+    optimization: {
+        minimize: true,
+        minimizer: [new TerserPlugin()],
+    },
+};
+```
+
+As we mentioned earlier, TerserWebpackPlugin is a default in Webpack v5, but there is a lot of additional options to include in the optimization process:
+
+- matching only certain file types
+- including and excluding certain types
+- running multi-process parallel for increasing build speed
+- extracting comments to a separate file
+- preserving certain comments by matching them with RegEx
+- uglifying minimized build
+- using `swc`, a super fast compiler written in Rust
+- using `esbuild`, an extremely fast JS bundler and minifier
+- writing custom minify functions
+
+Read more about it [here](https://webpack.js.org/plugins/terser-webpack-plugin/).
+
