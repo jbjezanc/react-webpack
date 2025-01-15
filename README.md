@@ -596,15 +596,56 @@ module.exports = {
 
 As we mentioned earlier, TerserWebpackPlugin is a default in Webpack v5, but there is a lot of additional options to include in the optimization process:
 
-- matching only certain file types
-- including and excluding certain types
-- running multi-process parallel for increasing build speed
-- extracting comments to a separate file
-- preserving certain comments by matching them with RegEx
-- uglifying minimized build
-- using `swc`, a super fast compiler written in Rust
-- using `esbuild`, an extremely fast JS bundler and minifier
-- writing custom minify functions
+-   matching only certain file types
+-   including and excluding certain types
+-   running multi-process parallel for increasing build speed
+-   extracting comments to a separate file
+-   preserving certain comments by matching them with RegEx
+-   uglifying minimized build
+-   using `swc`, a super fast compiler written in Rust
+-   using `esbuild`, an extremely fast JS bundler and minifier
+-   writing custom minify functions
 
 Read more about it [here](https://webpack.js.org/plugins/terser-webpack-plugin/).
 
+# Extracting CSS with MiniCssExtractPlugin
+
+Currently, all CSS is bundled together with the javascript code in one bundle file.
+MiniCssExtractPlugin extracts CSS into separate files. It creates a CSS file per JS file which contain CSS. It supports on-demand-loading of CSS and source maps.
+
+```js
+$ npm install --save-dev mini-css-extract-plugin
+```
+
+In our production webpack configuration we already have defined rule for matching css files. All we need to do now is to add the `use` property in the Rule object:
+
+```js
+...
+const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+
+module.exports = {
+    mode: 'production',
+    ...
+    module: {
+        rules: [
+            ...
+            {
+                test: /\.css$/i,
+                use: [MiniCssExtractPlugin.loader, 'css-loader'],
+            },
+            ...
+        ],
+    },
+        plugins: [
+            ...
+            new MiniCssExtractPlugin(),
+    ],
+    ...
+};
+
+```
+
+Since we are in the production mode, we can safely replace `style-loader` with the `MiniCssExtractPlugin.loader`.
+We also have to include a new instance of `MiniCssExtractPlugin` in the `plugins` array. It comes with options configuration object, but for our purpose we will instantiate it without one.
+
+The compilation/bundling will spit out additional file in our `dist` directory - namely, `main.css`.
