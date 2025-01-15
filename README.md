@@ -735,3 +735,299 @@ Use environment variables (e.g., `process.env.API_URL`) with `DefinePlugin` to m
 Be cautious about using source-map in production as it can expose sensitive information (e.g., comments or unintentional code leaks).
 For stricter control, you might prefer `hidden-source-map`, which doesn't expose the source map URL in the minified file.
 
+# SplitChunksPlugin
+
+Originally, chunks (and modules imported inside them) were connected by a parent-child relationship in the internal webpack graph.
+The `CommonsChunkPlugin` was used to avoid duplicated dependencies across them, but further optimizations were not possible.
+Since webpack v4, the `CommonsChunkPlugin` was removed in favor of `optimization.splitChunks`.
+
+Webpack will automatically split chunks based on these conditions:
+
+-   New chunk can be shared OR modules are from the node_modules folder
+-   New chunk would be bigger than 20kb (before min+gz)
+-   Maximum number of parallel requests when loading chunks on demand would be lower or equal to 30
+-   Maximum number of parallel requests at initial page load would be lower or equal to 30
+
+When trying to fulfill the last two conditions, bigger chunks are preferred.
+
+The default configuration was chosen to fit web performance best practices, but the optimal strategy for your project might differ. If you're changing the configuration, you should measure the effect of your changes to ensure there's a real benefit.
+
+```js
+...
+module.exports = {
+    ...
+     optimization: {
+        chunkIds: 'named',
+        minimize: true,
+        minimizer: [new TerserPlugin()],
+        splitChunks: {
+            chunks: 'async',
+            minSize: 20000,
+            minRemainingSize: 0,
+            minChunks: 1,
+            maxAsyncRequests: 30,
+            maxInitialRequests: 30,
+            enforceSizeThreshold: 50000,
+            cacheGroups: {
+                defaultVendors: {
+                    test: /[\\/]node_modules[\\/]/,
+                    priority: -10,
+                    name: 'vendor'
+                    chunks: 'all',
+                    reuseExistingChunk: true,
+                },
+                default: {
+                    minChunks: 2,
+                    priority: -20,
+                    reuseExistingChunk: true,
+                },
+            },
+        },
+    },
+};
+
+```
+
+This might result in a large chunk containing all external packages. It is recommended to only include your core frameworks and utilities and dynamically load the rest of the dependencies.
+
+For example:
+
+```js
+...
+module.exports = {
+    ...
+     optimization: {
+        chunkIds: 'named',
+        minimize: true,
+        minimizer: [new TerserPlugin()],
+        splitChunks: {
+            chunks: 'async',
+            minSize: 20000,
+            minRemainingSize: 0,
+            minChunks: 1,
+            maxAsyncRequests: 30,
+            maxInitialRequests: 30,
+            enforceSizeThreshold: 50000,
+            cacheGroups: {
+                defaultVendors: {
+                    test: /[\\/]node_modules[\\/](react|react-dom)[\\/]/,
+                    priority: -10,
+                    name: 'vendor'
+                    chunks: 'all',
+                },
+                default: {
+                    minChunks: 2,
+                    priority: -20,
+                    reuseExistingChunk: true,
+                },
+            },
+        },
+    },
+};
+
+```
+
+Some of the options described:
+
+`splitChunks.minSize` is a minimum size, in bytes, for a chunk to be generated.
+If that value is less, no optimization will happen.
+
+`splitChunks.enforceSizeThreshold` size threshold at which splitting is enforced and other restrictions are ignored. You could throw an error if that threshold is reached.
+
+`splitChunks.cacheGroups` a module can belong to multiple cache groups. The optimization will prefer the cache group with a higher `priority`.
+The default groups have a negative priority to allow custom groups to take higher priority (default value is `0` for custom groups).
+We have two groups, one `default` and a separate one for the `node_modules`.
+
+`splitChunks.cacheGroups.filename` a filename of the generated chunk.
+
+`splitChunks.cacheGroups.chunks: 'all'` include all types of chunks for optimization
+
+`optimization.chunkIds` tells webpack which algorithm to use when choosing chunk ids. The value `named` is focused on readable ids for better debugging.
+Also if the environment is development then `optimization.chunkIds` is set to `'named'`, while in production it is set to `'deterministic'`.
+`'deterministic'` means short numeric ids which will not be changing between compilation. Good for long term caching. Enabled by default for production mode.
+
+We will create a shared/common component in the `src/components` which could be called/used in multiple places, but we want them being built as a separate chunk.
+
+`src/components/shared/Button.tsx`
+
+```js
+import React from 'react';
+
+export default function ButtonComponent() {
+    return <button>Click Me!</button>;
+}
+```
+
+Call it in the `App.js`
+
+```js
+...
+import ButtonComponent from '../shared/Button';
+import DashboardComponent from './Dashboard';
+
+export default function AppComponent() {
+...
+    return (
+        <div className="container">
+            <div>App Component</div>
+            <div>
+                <img className="dog" src={dogImage} alt="a dog" />
+                <ButtonComponent />
+                    <DashboardComponent />
+            </div>
+        </div>
+    );
+}
+
+```
+
+and another newly created component `src/components/Dashboard.jsx` called in the App.jsx.
+
+```js
+import React from 'react';
+
+export default function DashboardComponent() {
+    return (
+        <>
+            <div>Dashboard Component</div>
+            <ButtonComponent />
+        </>
+    );
+}
+```
+
+Modify the `webpack.prod.config.js`
+
+```js
+...
+module.exports = {
+    ...
+     optimization: {
+        chunkIds: 'named',
+        minimize: true,
+        minimizer: [new TerserPlugin()],
+        splitChunks: {
+            chunks: 'async',
+            minSize: 200,
+            minRemainingSize: 0,
+            minChunks: 1,
+            maxAsyncRequests: 30,
+            maxInitialRequests: 30,
+            enforceSizeThreshold: 50000,
+            cacheGroups: {
+                defaultVendors: {
+                    test: /[\\/]node_modules[\\/]/,
+                    priority: -10,
+                    name: 'vendor',
+                    chunks: 'all',
+                    reuseExistingChunk: true,
+                },
+                default: {
+                    minChunks: 1,
+                    priority: -20,
+                    reuseExistingChunk: true,
+                    name: 'common',
+                    chunks: 'all',
+                },
+            },
+        },
+    },
+};
+
+```
+
+Explanation:
+
+1. `chunkIds: 'named`
+    - Purpose: 
+        - Assign readable names to chunks rather than using default numeric or hashed IDs.
+    - Benefits:
+        - Improved debugging experience and chunks are more identifiable during development.
+        - When to use: typically for development or testing environments, as it makes bundle analysis easier.
+        - In production: we might prefer `'deterministic'` or `'size'` for smaller output or consistent hashing.
+
+2. `minimize: true`
+    - Purpose: 
+        - Enable code minification to reduce the size of our JavaScript bundles.
+    - How: 
+        - Webpack uses the `TerserPlugin` by default to minimize the output.
+    - Benefit:
+        - Reduces bundle size, leading to faster downloads and better performance in production.
+
+3. `minimizer: [new TerserPlugin()]`
+    - Purpose:
+        - Specifies a custom minimizer for JavaScript files.
+    - Details:
+        - You're explicitly defining `TerserPlugin`, which is Webpack's default minimizer in production mode.
+        - This allows us to customize Terser settings if needed.
+    - Benefit:
+        - Enables us to optimize minification further, such as removing comments, adjusting compression, or handling specific ES versions.
+
+4. `splitChunks`
+    - Purpose:
+        - Splits our bundles into smaller chunks to improve performance and allow for better caching.
+    - Key Configurations:
+        - `chunks: 'async'` 
+            - Splits only asynchronous (dynamically imported) chunks.
+            - Benefit:
+                - Reduces initial load times by loading only what's needed on-demand.
+        - `minSize: 200`
+            - The minimum size (in bytes) of a chunk before Webpack considers splitting it.
+            - Why 200?
+                - Small chunks (less than 200 bytes) are inefficient to load due to network overhead,
+                so this avoids unnecessary splitting.
+        - `minRemainingSize: 0`
+            - Ensures that the size of the remaining chunk after splitting doesn't fall below the specified value.
+            - Default Behavior:
+                - Matches `minSize` if not explicitly set.
+        - `minChunks: 1`
+            - The minimum number of chunks that must share a module before it's split.
+            - Why 1?
+                - Ensures even single-use modules can be split, which helps in reducing duplicated code.
+        - `maxAsyncRequests: 30` and `maxInitialRequests: 30`
+            - Limits the number of simultaneous chunk requests for asynchronous (`maxAsyncRequests`) or initial (`maxInitialRequests`) chunks.
+            - Why 30?
+                - High limits ensure you’re not unnecessarily restricted while avoiding too many
+                simultaneous requests.
+        - `enforceSizeThreshold: 50000`
+            - Enforces a chunk size threshold, ensuring chunks larger than this value (in bytes) are split even if other conditions aren’t met.
+            - Benefit:
+                - Prevents very large bundles that might negatively impact performance.
+
+5. `cacheGroups`
+    - Purpose:
+        - Groups chunks together into logical bundles, typically by separating third-party libraries (from node_modules) and common code.
+    - Key Groups:
+        - `defaultVendors`
+            - What it does:
+                - Identifies modules from `node_modules` and bundles them into a chunk called `vendor`.
+            - Priority:
+                - `priority: -10` means this group takes precedence over the `default` group when deciding where to place a module.
+            - Reuse:
+                - `reuseExistingChunk: true` avoids duplicate chunks by reusing an existing one if it matches.
+            - Chunks:
+                - `chunk: all` means both synchronous and asynchronous modules are eligible for bundling here.
+        - `default`
+            - What it does:
+                - Handles modules that don't belong to `node_modules` but are shared across multiple entry points.
+            - Priority:
+                - `priority: -20` ensures it is considered after the `defaultVendors` group.
+            - Reuse:
+                - Reuses chunks if they match the criteria.
+
+Why is this optimization useful?
+
+1. Improved Caching:
+    - Splitting vendor code (third-party libraries) into a separate chunk means that if your app's code changes but the vendor libraries remain the same, users can leverage browser caching for faster load times.
+2. Reduced Bundle Size:
+    - Splitting chunks ensures that only the necessary code is loaded, reducing the overall bundle size and initial load times.
+3. Enhanced Performance:
+    - By braking down larger bundles into smaller, more manageable chunks, we reduce parsing and execution time in the browser.
+4. Better Scalability:
+    - This setup is robust enough to handle both small projects and large-scale applications with multiple entry points.
+
+Example Output:
+    - `vendor.bundle.js` contains third-party libraries like React.
+    - `common.bundle.js` contains code shared across multiple parts of your app.
+    - Dynamic Chunks: Asynchronous modules will be loaded on demand.
+

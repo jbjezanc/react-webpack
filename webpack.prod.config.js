@@ -53,7 +53,33 @@ module.exports = {
         }),
     ],
     optimization: {
+        chunkIds: 'named',
         minimize: true,
         minimizer: [new TerserPlugin()],
+        splitChunks: {
+            chunks: 'async',
+            minSize: 200,
+            minRemainingSize: 0,
+            minChunks: 1,
+            maxAsyncRequests: 30,
+            maxInitialRequests: 30,
+            enforceSizeThreshold: 50000,
+            cacheGroups: {
+                defaultVendors: {
+                    test: /[\\/]node_modules[\\/]/,
+                    priority: -10,
+                    name: 'vendor',
+                    chunks: 'all',
+                    reuseExistingChunk: true,
+                },
+                default: {
+                    minChunks: 1,
+                    priority: -20,
+                    reuseExistingChunk: true,
+                    name: 'common',
+                    chunks: 'all',
+                },
+            },
+        },
     },
 };
