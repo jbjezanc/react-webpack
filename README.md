@@ -1092,3 +1092,116 @@ const DynamicComponent = lazy(() =>
 ```
 
 If we now run the production build, to our surprise we can see the generated chunk named `dynamic-component.bundle.js`.
+
+# Performance
+
+These options allows you to control how webpack notifies you of assets and entry points that exceed a specific file limit. This feature was inspired by the idea of [webpack Performance Budgets](https://github.com/webpack/webpack/issues/3216).
+
+Make a production configuration change by applying the `performance` object:
+
+```js
+const path = require('path');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
+const TerserPlugin = require('terser-webpack-plugin');
+const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+const webpack = require('webpack');
+
+module.exports = {
+    mode: 'production',
+    devtool: 'source-map',
+    entry: './src/components/index.js',
+    output: {
+        path: path.resolve(__dirname, 'dist'),
+        filename: '[name].bundle.js',
+    },
+    resolve: {
+        extensions: ['.js', '.jsx'],
+        alias: {
+            '@': path.resolve(__dirname, 'src'),
+        },
+    },
+    performance: {
+        hints: 'warning',
+        maxAssetSize: 100000,
+    },
+    module: {
+        rules: [
+            {
+                test: /\.(?:js|jsx)$/,
+                exclude: /node_modules/,
+                use: {
+                    loader: 'babel-loader',
+                    options: {
+                        targets: 'defaults',
+                        presets: ['@babel/preset-env', '@babel/preset-react'],
+                    },
+                },
+            },
+            {
+                test: /\.css$/i,
+                use: [MiniCssExtractPlugin.loader, 'css-loader'],
+            },
+            {
+                test: /\.(png|svg|jpg|jpeg|gif)$/i,
+                type: 'asset/resource',
+            },
+        ],
+    },
+    plugins: [
+        new HtmlWebpackPlugin({
+            template: './public/index.html',
+            filename: 'index.html',
+        }),
+        new MiniCssExtractPlugin(),
+        new webpack.DefinePlugin({
+            PRODUCTION: JSON.stringify(true),
+            API_URL: JSON.stringify('https://api/v2/graphql'),
+        }),
+    ],
+    optimization: {
+        chunkIds: 'named',
+        minimize: true,
+        minimizer: [new TerserPlugin()],
+        splitChunks: {
+            chunks: 'async',
+            minSize: 20000,
+            minRemainingSize: 0,
+            minChunks: 1,
+            maxAsyncRequests: 30,
+            maxInitialRequests: 30,
+            enforceSizeThreshold: 50000,
+            cacheGroups: {
+                defaultVendors: {
+                    test: /[\\/]node_modules[\\/]/,
+                    priority: -10,
+                    name: 'vendor',
+                    chunks: 'all',
+                    reuseExistingChunk: true,
+                },
+                default: {
+                    minChunks: 1,
+                    priority: -20,
+                    reuseExistingChunk: true,
+                    name: 'common',
+                    chunks: 'all',
+                },
+            },
+        },
+    },
+};
+```
+Webpack will now emit a performance hit based on individual asset size in bytes (in our case 100 KB or 97.7 KiB).
+
+The warning will look something like this:
+
+**WARNING** in asset size limit: The following asset(s) exceed the recommended size limit (97.7 KiB).
+This can impact web performance.
+Assets: 
+  vendor.bundle.js (177 KiB)
+
+Other useful options:
+
+`maxEntrypointSize: 400` - an entry pont for all assets that would be utilized during initial load time for a specific entry. This option controls when webpack should emit performance hints based on the maximum entry pont size in bytes.
+
+We can set budget on each and every chung being emitted. 
+Also, we can be more strict on performance and issue errors when certain triggers happen.

@@ -18,6 +18,10 @@ module.exports = {
             '@': path.resolve(__dirname, 'src'),
         },
     },
+    performance: {
+        hints: 'warning',
+        maxAssetSize: 100000,
+    },
     module: {
         rules: [
             {
